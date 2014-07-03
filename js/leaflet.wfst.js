@@ -31,6 +31,7 @@ L.WFST = L.GeoJSON.extend({
         if(typeof initOptions.featureType == 'undefined'){ throw "ERROR: featureType not declared"; }
 
         initOptions.typename = initOptions.featureNS + ':' + initOptions.featureType;
+        this._callLevel = 0;
 
         // Call to parent initialize
         L.GeoJSON.prototype.initialize.call(this,geojson,initOptions);
@@ -52,6 +53,37 @@ L.WFST = L.GeoJSON.extend({
 
         // Call to parent removeLayer
         L.GeoJSON.prototype.removeLayer.call(this,layer);
+    },
+
+    onAdd: function(map) {
+        this._crs = this.options.crs || map.options.crs;
+        L.GeoJSON.prototype.onAdd.call(this, map);
+    },
+
+    addData: function(geojson) {
+        var crs = this._crs;
+
+        if (geojson) {
+            if (crs !== undefined) {
+                this.options.coordsToLatLng = function(coords) {
+                    var point = L.point(coords[0], coords[1]);
+                    return crs.projection.unproject(point);
+                };
+            }
+        }
+
+        // Base class' addData might call us recursively, but
+        // CRS shouldn't be cleared in that case, since CRS applies
+        // to the whole GeoJSON, inluding sub-features.
+        this._callLevel++;
+        try {
+            L.GeoJSON.prototype.addData.call(this, geojson);
+        } finally {
+            this._callLevel--;
+            if (this._callLevel === 0) {
+                delete this.options.coordsToLatLng;
+            }
+        }
     },
 
 
